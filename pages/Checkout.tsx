@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, CreditCard, Lock, AlertTriangle, Building, ShieldCheck } from 'lucide-react';
+import { Check, CreditCard, Lock, AlertTriangle, Building, ShieldCheck, XOctagon } from 'lucide-react';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
@@ -11,40 +11,76 @@ const Checkout: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'card' | 'paypal' | 'bank'>('card');
   const [cardNumber, setCardNumber] = useState('');
+  const [cvc, setCvc] = useState('');
+  const [isBlocked, setIsBlocked] = useState(false);
   
   const { cartTotal, clearCart } = useCart();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // LUHN Algorithm for Basic Card Validation (Simulation)
-  const isValidCard = (val: string) => {
-    if (!val || val.length < 13) return false;
-    // Allow test card: 4242 4242 4242 4242
-    return true; 
-  };
-
   const handlePlaceOrder = () => {
+    if (isBlocked) return;
+    
     setError(null);
     setLoading(true);
 
-    // Simulate Fraud Check & Processing
+    // Backend Simulation: Fraud Detection Logic
     setTimeout(() => {
+      // 1. Check if user is trying to scam with empty or short card numbers
       if (paymentMethod === 'card') {
-         // Basic validation simulation
-         if (cardNumber.replace(/\s/g, '').length < 16) {
-             setError("Transaction Declined: Invalid Credit Card Number.");
+         const cleanCard = cardNumber.replace(/\s/g, '');
+         const cleanCvc = cvc.replace(/\s/g, '');
+
+         // FRAUD DETECTED: Very short number or obvious fake
+         if (cleanCard.length < 13 || cleanCvc.length < 3 || cleanCard === '123456789') {
              setLoading(false);
+             setIsBlocked(true);
+             setError("CRITICAL SECURITY ALERT: Suspicious activity detected. Your IP has been flagged and this account is now temporarily BLOCKED to prevent fraud.");
              return;
          }
+
+         // Validation Error: Standard validation
+         if (cleanCard.length !== 16) {
+             setLoading(false);
+             setError("Transaction Declined: Invalid Credit Card Number format. Please double check.");
+             return;
+         }
+      }
+
+      // 2. Check for fake bank transfer attempts (Simulation)
+      if (paymentMethod === 'bank') {
+          // In a real app, this would verify the transfer token
       }
 
       // Success
       setLoading(false);
       clearCart();
-      alert(`Order Placed Successfully! Confirmation sent to ${user?.email || 'your email'}.`);
+      alert(`Payment Approved! Order ID: #LUM-${Math.floor(Math.random() * 100000)}. Confirmation sent to ${user?.email || 'your email'}.`);
       navigate('/');
-    }, 3000);
+    }, 2500);
   };
+
+  if (isBlocked) {
+      return (
+          <div className="min-h-screen bg-black flex items-center justify-center p-4">
+              <div className="bg-red-950/30 border-2 border-red-600 rounded-3xl p-12 text-center max-w-2xl animate-pulse">
+                  <XOctagon size={80} className="text-red-500 mx-auto mb-6" />
+                  <h1 className="text-4xl font-bold text-red-500 mb-4 uppercase tracking-widest">Account Blocked</h1>
+                  <p className="text-red-200 text-lg mb-8">
+                      Our security systems detected a fraudulent payment attempt. 
+                      To protect our users, access to checkout has been suspended for this session.
+                  </p>
+                  <div className="bg-black/50 p-4 rounded-lg text-red-400 font-mono text-sm">
+                      Error Code: FRAUD_DETECT_L2 <br/>
+                      IP: {Math.floor(Math.random()*255)}.{Math.floor(Math.random()*255)}.12.43
+                  </div>
+                  <button onClick={() => window.location.href='/'} className="mt-8 px-8 py-3 bg-red-800 text-white rounded-lg hover:bg-red-700 font-bold">
+                      Return to Home
+                  </button>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-black pt-32 pb-20 transition-colors duration-300">
@@ -150,7 +186,7 @@ const Checkout: React.FC = () => {
                            <input 
                              type="text" 
                              placeholder="0000 0000 0000 0000" 
-                             maxLength={19}
+                             maxLength={16}
                              value={cardNumber}
                              onChange={(e) => setCardNumber(e.target.value)}
                              className="w-full pl-12 pr-5 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" 
@@ -166,7 +202,14 @@ const Checkout: React.FC = () => {
                           <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">CVC</label>
                           <div className="relative">
                              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                             <input type="text" placeholder="123" className="w-full pl-10 pr-5 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" />
+                             <input 
+                                type="password" 
+                                placeholder="123" 
+                                value={cvc}
+                                onChange={(e) => setCvc(e.target.value)}
+                                maxLength={3}
+                                className="w-full pl-10 pr-5 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 outline-none" 
+                             />
                           </div>
                         </div>
                       </div>
@@ -223,15 +266,15 @@ const Checkout: React.FC = () => {
                </div>
 
                {error && (
-                 <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl flex items-center gap-3 justify-center">
+                 <div className="mb-6 p-4 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-xl flex items-center gap-3 justify-center border border-red-500/50">
                     <AlertTriangle size={20} />
-                    {error}
+                    <span className="font-bold">{error}</span>
                  </div>
                )}
 
                <div className="flex justify-between max-w-lg mx-auto">
                   <Button variant="ghost" onClick={() => setStep(2)} disabled={loading}>Back</Button>
-                  <Button size="lg" onClick={handlePlaceOrder} isLoading={loading} className="shadow-xl shadow-primary-500/20">
+                  <Button size="lg" onClick={handlePlaceOrder} isLoading={loading} className="shadow-xl shadow-primary-500/20 bg-primary-600 hover:bg-primary-500 text-white">
                     {loading ? 'Processing Securely...' : `Pay $${(cartTotal * 1.08).toFixed(2)}`}
                   </Button>
                </div>
